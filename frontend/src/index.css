@@ -471,6 +471,19 @@ h4.sec{
 .timef::-webkit-calendar-picker-indicator{filter:invert(.5)}
 :root[data-theme="light"] .timef::-webkit-calendar-picker-indicator{filter:none}
 
+/* exact minutes+seconds entry — sits in a row the same way .timef does */
+.durf{
+  display:flex;align-items:baseline;gap:4px;background:var(--surface-2);
+  border-radius:8px;padding:6px 10px;
+}
+.durf .num{
+  width:24px;text-align:right;background:none;border:none;outline:none;
+  font-size:16px;color:var(--label);font-variant-numeric:tabular-nums;
+  -moz-appearance:textfield;appearance:textfield;
+}
+.durf .num::-webkit-inner-spin-button{display:none}
+.durf span{font-size:13px;color:var(--label-2)}
+
 /* --- stepper --- */
 .stp-w{display:flex;flex-direction:column;gap:6px;min-width:0}
 .stp-l{font-size:13px;color:var(--label-2);text-align:center}

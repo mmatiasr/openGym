@@ -60,6 +60,24 @@ export function TextArea({ className = '', ...rest }) {
   return <textarea className={'field area ' + className} {...rest} />
 }
 
+/* ============================ duration (m:s) ============================ */
+// Exact minutes+seconds, typed directly — a fixed list of presets (60/90/120s…) fights
+// anyone who actually wants :20 or 1:45, and a rest timer is short enough that dialing it
+// in digit by digit isn't a chore the way it would be for, say, a weight.
+export function DurationField({ valueSec, onChange, className = '' }) {
+  const v = Math.max(0, Math.round(valueSec || 0))
+  const min = Math.floor(v / 60)
+  const sec = v % 60
+  return (
+    <div className={'durf ' + className}>
+      <NumberField decimal={false} value={min} onChange={m => onChange(Math.max(0, Math.round(m || 0)) * 60 + sec)} />
+      <span>m</span>
+      <NumberField decimal={false} value={sec} onChange={s => onChange(min * 60 + Math.max(0, Math.min(59, Math.round(s || 0))))} />
+      <span>s</span>
+    </div>
+  )
+}
+
 export function SearchField({ value, onChange, onClear, ...rest }) {
   return (
     <div className="searchf">

@@ -3,7 +3,7 @@ import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf } from './lib/exercises.js'
 import { fmtDate, fmtNum, fmtVol, fmtDur, durPart, todayISO, uid, exCount, DAYN, MONTHS_LONG, ACCENTS } from './lib/format.js'
-import { lastEntryFor, bestWeightFor, buildSets, effectiveRoutineId, workoutVolume, setsDone, setsDoneActive, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, isBw, isPerSide, sideReps } from './lib/history.js'
+import { lastEntryFor, bestWeightFor, buildSets, effectiveRoutineId, workoutVolume, setsDone, setsDoneActive, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, isBw, isPerSide, sideReps, fmtSec } from './lib/history.js'
 import { beep, vibrate } from './lib/sound.js'
 import { t, instrFor, getLang, INSTR_LANGS } from './lib/i18n.js'
 import { nav } from './lib/nav.js'
@@ -11,7 +11,7 @@ import { starterRoutines } from './lib/starter.js'
 import Media, { Thumb } from './components/Media.jsx'
 import Stepper from './components/Stepper.jsx'
 import Icon from './components/Icon.jsx'
-import { Button, Slider, Switch, Segmented, SelectRow, Row } from './components/ui.jsx'
+import { Button, Slider, Switch, Segmented, SelectRow, Row, DurationField } from './components/ui.jsx'
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
 import { loadOfWorkouts } from './lib/muscles.js'
@@ -589,10 +589,15 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine }) {
         : t('Reps climb by one whenever every set was clean. Set a ceiling to add sets instead of reps forever.')}
     </div>}
     <div className="sect-b" style={{ marginBottom: 18 }}>
-      <SelectRow icon="timer" iconTint="var(--orange)" title={t('Rest between sets')} sheetTitle={t('Rest between sets')}
-        value={c.rest || ''} onChange={v => setC(x => ({ ...x, rest: v || undefined }))}
-        options={[{ value: '', label: t('Default ({0}s)', st.restSec) },
-          ...[30, 45, 60, 90, 120, 150, 180, 240].map(v => ({ value: v, label: v + 's' }))]} />
+      <Row icon="timer" iconTint="var(--orange)" title={t('Custom rest time')}
+        subtitle={c.rest > 0 ? null : t('Otherwise follows the app-wide rest timer ({0}).', fmtSec(st.restSec))}>
+        <Switch checked={c.rest > 0} onChange={v => setC(x => ({ ...x, rest: v ? (st.restSec || 90) : undefined }))} />
+      </Row>
+      {c.rest > 0 && (
+        <Row icon="clock" iconTint="var(--purple)" title={t('Rest duration')}>
+          <DurationField valueSec={c.rest} onChange={v => setC(x => ({ ...x, rest: Math.max(1, v) }))} />
+        </Row>
+      )}
     </div>
     <ProgressionFields ex={ex} mode={mode} c={c} setC={setC} routine={routine} unit={st.unit} />
     <Button variant="primary" onClick={save}>{existing ? t('Save') : t('Add to routine')}</Button>
