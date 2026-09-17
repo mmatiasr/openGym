@@ -188,9 +188,15 @@ function ActiveWorkout() {
     clearTimeout(scrollDebounce.current)
     scrollDebounce.current = setTimeout(() => {
       if (!el.clientWidth) return
-      const idx = Math.round(el.scrollLeft / el.clientWidth)
+      const idx = Math.max(0, Math.min(units.length - 1, Math.round(el.scrollLeft / el.clientWidth)))
       const u = units[idx]
-      if (u && u[0] !== cur) update(s => { s.active.cur = u[0] })
+      if (!u) return
+      // Finish the page ourselves — a scroll that settled short of the halfway mark (a
+      // single small wheel tick, a partial drag) leaves the index unchanged, and without an
+      // explicit scrollTo here nothing else would ever pull it back off that in-between
+      // spot: the layout effect below only fires when `cur` itself changes.
+      el.scrollTo({ left: idx * el.clientWidth, behavior: 'smooth' })
+      if (u[0] !== cur) update(s => { s.active.cur = u[0] })
     }, 120)
   }
   // A plain mouse (no touchscreen, no trackpad) has no built-in gesture for horizontal

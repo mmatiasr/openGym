@@ -878,11 +878,17 @@ h4.sec{
 .ss-ex{position:relative}
 .ss-amp{text-align:center;font-size:15px;font-weight:600;color:var(--acc);margin:14px 0 8px}
 
-/* --- active workout: swipe between exercises instead of Prev/Next buttons --- */
+/* --- active workout: swipe between exercises instead of Prev/Next buttons ---
+   `proximity`, not `mandatory`: Chrome enforces mandatory snap even against a JS-driven
+   scroll, reverting scrollLeft to the current page on every single write — which silently
+   broke both wheel and drag-to-scroll below (any mid-page position was rejected outright).
+   Proximity only snaps once a gesture actually settles near a page, so JS can freely walk
+   through intermediate positions; the debounced settle in onExScroll still pulls it the
+   rest of the way onto a clean page afterwards. */
 .ex-scroll{
-  display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+  display:flex;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
   scrollbar-width:none;overscroll-behavior-x:contain;margin:0 calc(var(--pad) * -1);
-  cursor:grab;
+  cursor:grab;user-select:none;
 }
 .ex-scroll:active{cursor:grabbing}
 .ex-scroll::-webkit-scrollbar{display:none}
