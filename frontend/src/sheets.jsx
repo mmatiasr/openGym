@@ -84,7 +84,7 @@ function WeightInput({ value, setValue, unit }) {
 }
 
 /* ============================ body weight ============================ */
-function BwSheet({ required, onDone, close }) {
+function BwSheet({ close }) {
   const st = useStore(s => s.S)
   const unit = st.unit
   const bw = lastBW(st)
@@ -99,21 +99,17 @@ function BwSheet({ required, onDone, close }) {
       s.bodyweight.sort((a, b) => (a.d < b.d ? -1 : 1))
     })
     close()
-    if (onDone) onDone(n); else toast(t('Weight saved'))
+    toast(t('Weight saved'))
   }
   const recent = [...st.bodyweight].reverse().slice(0, 3)
   const delEntry = d => update(s => { s.bodyweight = s.bodyweight.filter(b => b.d !== d) })
   return <>
-    <h3>{required ? t('Quick check-in') : t('Log body weight')}</h3>
-    <div className="muted small">{required ? t('Slide or tap to set your weight — tracked before every workout so your curve stays honest.') : t('Today') + ', ' + fmtDate(todayISO(), true)}</div>
+    <h3>{t('Log body weight')}</h3>
+    <div className="muted small">{t('Today') + ', ' + fmtDate(todayISO(), true)}</div>
     <WeightInput value={v} setValue={setV} unit={unit} />
     <div style={{ height: 14 }} />
-    <Button variant="primary" onClick={save}>{required ? t('Save & start workout') : t('Save')}</Button>
-    {required && <>
-      <div style={{ height: 8 }} /><Button variant="ghost" className="dim" onClick={() => { close(); onDone && onDone(null) }}>{t('Start without weighing in')}</Button>
-      <div style={{ height: 2 }} /><Button variant="ghost" className="dim" icon="reset" onClick={() => { close(); nav('/workout') }}>{t('Choose a different workout')}</Button>
-    </>}
-    {!required && recent.length > 0 && <>
+    <Button variant="primary" onClick={save}>{t('Save')}</Button>
+    {recent.length > 0 && <>
       <h4 className="sec">{t('Recent weigh-ins')}</h4>
       <div className="list" style={{ gap: 0 }}>
         {recent.map(b => <div key={b.d} className="row between" style={{ padding: '9px 2px', borderBottom: '1px solid var(--sep)' }}>
@@ -125,9 +121,8 @@ function BwSheet({ required, onDone, close }) {
     </>}
   </>
 }
-export function bwSheet(opts = {}) {
-  const h = ui().openSheet(close => <BwSheet {...opts} close={close} />, { locked: !!opts.required })
-  return h
+export function bwSheet() {
+  return ui().openSheet(close => <BwSheet close={close} />)
 }
 
 /* ============================ import from another app ============================ */
@@ -509,14 +504,17 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine }) {
     // rather than carrying a flag nothing downstream can read.
     const flags = {}
     if (bw !== isBodyweightEq(ex.id)) flags.bodyweight = bw
-    if (cardio) onSave({ sets, min: Math.max(1, Math.round(c.min) || 20), speed: Math.max(0, c.speed || 8) })
-    else if (mode === 'time') onSave({ sets, mode: 'time', sec: Math.max(1, Math.round(c.sec) || 45), weight: Math.max(0, c.weight || 0), ...flags, ...prog })
+    // Left unset, the exercise just follows the app-wide rest timer (Settings) — same
+    // "inherit unless overridden" shape as progression, above.
+    const rest = c.rest > 0 ? { rest: c.rest } : {}
+    if (cardio) onSave({ sets, min: Math.max(1, Math.round(c.min) || 20), speed: Math.max(0, c.speed || 8), ...rest })
+    else if (mode === 'time') onSave({ sets, mode: 'time', sec: Math.max(1, Math.round(c.sec) || 45), weight: Math.max(0, c.weight || 0), ...flags, ...prog, ...rest })
     else {
       // A unilateral target is stored even: the split has to divide, and a typed 15 would
       // otherwise plan seven reps on one side and eight on the other, every session.
       const typed = Math.max(1, Math.round(c.reps) || 10)
       const reps = perSide ? Math.ceil(typed / 2) * 2 : typed
-      const out = { sets, mode: 'reps', reps, weight: Math.max(0, c.weight || 0), ...flags, ...(perSide ? { side: true } : {}), ...prog }
+      const out = { sets, mode: 'reps', reps, weight: Math.max(0, c.weight || 0), ...flags, ...(perSide ? { side: true } : {}), ...prog, ...rest }
       if (policyFor({ ...c, id: ex.id }, routine, 'reps') === 'double') out.repsMin = Math.min(reps, Math.max(1, Math.round(c.repsMin) || Math.max(1, reps - 2)))
       // A ceiling below the working reps would tell you to add a set on day one.
       if (bw && !(out.weight > 0) && c.repsMax > 0) out.repsMax = Math.max(reps, Math.round(c.repsMax))
@@ -590,6 +588,12 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine }) {
         ? t('Reps climb to {0}, then a set is added and the reps start over. At {1} sets it asks you to add weight instead.', c.repsMax, MAX_BW_SETS)
         : t('Reps climb by one whenever every set was clean. Set a ceiling to add sets instead of reps forever.')}
     </div>}
+    <div className="sect-b" style={{ marginBottom: 18 }}>
+      <SelectRow icon="timer" iconTint="var(--orange)" title={t('Rest between sets')} sheetTitle={t('Rest between sets')}
+        value={c.rest || ''} onChange={v => setC(x => ({ ...x, rest: v || undefined }))}
+        options={[{ value: '', label: t('Default ({0}s)', st.restSec) },
+          ...[30, 45, 60, 90, 120, 150, 180, 240].map(v => ({ value: v, label: v + 's' }))]} />
+    </div>
     <ProgressionFields ex={ex} mode={mode} c={c} setC={setC} routine={routine} unit={st.unit} />
     <Button variant="primary" onClick={save}>{existing ? t('Save') : t('Add to routine')}</Button>
     {ex.custom && <><div style={{ height: 8 }} /><Button icon="pencil" onClick={() => { close(); customExSheet(ex) }}>{t('Edit or delete this exercise')}</Button></>}
@@ -821,9 +825,9 @@ export function WorkoutRow({ w, onClick }) {
 
 /* ============================ workout lifecycle ============================ */
 export function startFlow(routineId) {
-  bwSheet({ required: true, onDone: bw => beginWorkout(routineId, bw) })
+  beginWorkout(routineId)
 }
-export function beginWorkout(routineId, bw) {
+export function beginWorkout(routineId) {
   const st = S()
   const r = routineId ? st.routines.find(x => x.id === routineId) : null
   // The prescription is applied as the session is built, so you walk up to the bar with the
@@ -833,8 +837,12 @@ export function beginWorkout(routineId, bw) {
     const plan = nextPrescription(st, cfg, r)
     return { id: cfg.id, sg: cfg.sg, target: { ...cfg }, plan, sets: applyPrescription(buildSets(st, cfg), plan) }
   })
+  // Body weight is no longer asked at the start of a workout — it's a daily check-in of its
+  // own now (Settings → Notifications → Weigh-in reminder). If today's already been logged,
+  // carry it onto the workout record for free; otherwise this just stays unset.
+  const todayBW = st.bodyweight.find(b => b.d === todayISO())
   update(s => {
-    s.active = { id: uid(), d: todayISO(), start: Date.now(), routineId, name: r ? r.name : t('Freestyle'), bw: bw || null, cur: 0, entries }
+    s.active = { id: uid(), d: todayISO(), start: Date.now(), routineId, name: r ? r.name : t('Freestyle'), bw: todayBW ? todayBW.w : null, cur: 0, entries }
   })
   useUI.getState().stopRest()
   nav('/workout')
@@ -861,7 +869,10 @@ function TopWeight({ entryIdx, close }) {
   const isLastUnit = unitIdx === units.length - 1
   if (!entry || !ex) return null
 
-  const commit = advance => {
+  // Saving the weight never moves you to another exercise — Prev/Next in the workout screen
+  // is the only thing that changes `active.cur`. The last-unit case still offers the
+  // finish/continue prompt, since that's about ending the workout, not about advancing.
+  const commit = () => {
     const n = Math.round((v || 0) * 10) / 10
     if (!isFinite(n) || n < 0) { toast(t('Enter a valid weight')); return }
     update(s => {
@@ -870,10 +881,8 @@ function TopWeight({ entryIdx, close }) {
       s.exWeights[entry.id] = { w: Math.max(n, cur ? cur.w : 0), d: todayISO() }
     })
     close()
-    if (advance && unitDone) {
-      if (isLastUnit) workoutCompleteSheet()               // whole workout done → finish/continue prompt
-      else update(s => { s.active.cur = units[unitIdx + 1][0] })
-    } else toast(t('Tracked — next time starts at {0}', fmtNum(S().exWeights[entry.id].w) + ' ' + st.unit))
+    if (unitDone && isLastUnit) workoutCompleteSheet()      // whole workout done → finish/continue prompt
+    else toast(t('Tracked — next time starts at {0}', fmtNum(S().exWeights[entry.id].w) + ' ' + st.unit))
   }
   return <>
     <h3 className="capitalize row" style={{ gap: 8 }}><Icon name="checkCircle" style={{ color: 'var(--acc)' }} />{t('{0} done', ex.n)}</h3>
@@ -881,10 +890,7 @@ function TopWeight({ entryIdx, close }) {
     <WeightInput value={v} setValue={setV} unit={st.unit} />
     <div style={{ height: 10 }} />
     {prevBest > 0 ? <div className="small dim" style={{ textAlign: 'center', marginBottom: 12 }}>{t('Previous best:')} {fmtNum(prevBest)} {st.unit}{maxSet > prevBest && <span style={{ color: 'var(--yellow)' }}> — {t('new record!')}</span>}</div> : <div style={{ height: 4 }} />}
-    {unitDone ? <>
-      <Button variant="primary" trailingIcon={isLastUnit ? null : 'chevronRight'} onClick={() => commit(true)}>{isLastUnit ? t('Save') : t('Save & next exercise')}</Button>
-      <div style={{ height: 8 }} /><Button variant="ghost" className="dim" onClick={() => commit(false)}>{t('Just close')}</Button>
-    </> : <Button variant="primary" onClick={() => commit(false)}>{t('Save weight')}</Button>}
+    <Button variant="primary" onClick={commit}>{t('Save weight')}</Button>
   </>
 }
 export const topWeightSheet = entryIdx => ui().openSheet(close => <TopWeight entryIdx={entryIdx} close={close} />)

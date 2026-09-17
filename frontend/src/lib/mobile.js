@@ -30,29 +30,45 @@ export async function nativeSave(state) {
   } catch (e) { /* keep the localStorage copy */ }
 }
 
-// (Re)schedule the workout-day reminder: one repeating notification per weekday that has a
-// routine in the weekly plan. Cheap enough to run after any state change — the plan or the
-// reminder time may just have been edited. `interactive` gates the OS permission prompt to
-// the Settings toggle; a background resync never pops a dialog.
+// (Re)schedule both local reminders: the workout-day one (per weekday that has a routine in
+// the weekly plan, ids 100-106) and the daily body-weight check-in (one repeating notification
+// with no weekday, id 110). Cheap enough to run after any state change — the plan or either
+// reminder's time may just have been edited. `interactive` gates the OS permission prompt to
+// the Settings toggle; a background resync never pops a dialog. Unlike the self-hosted Web
+// Push version, there's no server to skip a day that's already logged — these just fire.
 export async function syncReminder(S, interactive = false) {
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications')
     await LocalNotifications.cancel({ notifications: [0, 1, 2, 3, 4, 5, 6].map(d => ({ id: 100 + d })) }).catch(() => {})
-    const r = S.reminder
-    if (!r?.on) return true
+    await LocalNotifications.cancel({ notifications: [{ id: 110 }] }).catch(() => {})
+    const r = S.reminder, bwr = S.bwReminder
+    if (!r?.on && !bwr?.on) return true
     let perm = await LocalNotifications.checkPermissions()
     if (perm.display !== 'granted' && interactive) perm = await LocalNotifications.requestPermissions()
     if (perm.display !== 'granted') return false
-    const [hour, minute] = (r.time || '08:00').split(':').map(Number)
-    const notifications = Object.entries(S.week || {})
-      .filter(([, rid]) => rid && (S.routines || []).some(x => x.id === rid))
-      .map(([day, rid]) => ({
-        id: 100 + Number(day),
-        title: t('Workout day'),
-        body: t('{0} is on the plan today — let’s go!', S.routines.find(x => x.id === rid).name),
-        // Capacitor weekdays are 1 (Sunday) … 7 (Saturday); S.week uses getDay() 0…6.
-        schedule: { on: { weekday: Number(day) + 1, hour, minute }, allowWhileIdle: true },
-      }))
+    const notifications = []
+    if (r?.on) {
+      const [hour, minute] = (r.time || '08:00').split(':').map(Number)
+      notifications.push(...Object.entries(S.week || {})
+        .filter(([, rid]) => rid && (S.routines || []).some(x => x.id === rid))
+        .map(([day, rid]) => ({
+          id: 100 + Number(day),
+          title: t('Workout day'),
+          body: t('{0} is on the plan today — let’s go!', S.routines.find(x => x.id === rid).name),
+          // Capacitor weekdays are 1 (Sunday) … 7 (Saturday); S.week uses getDay() 0…6.
+          schedule: { on: { weekday: Number(day) + 1, hour, minute }, allowWhileIdle: true },
+        })))
+    }
+    if (bwr?.on) {
+      const [hour, minute] = (bwr.time || '08:00').split(':').map(Number)
+      // No weekday in the schedule → Capacitor repeats it every day at this time.
+      notifications.push({
+        id: 110,
+        title: t('Weigh-in time'),
+        body: t("Log today's body weight 📈"),
+        schedule: { on: { hour, minute }, allowWhileIdle: true },
+      })
+    }
     if (notifications.length) await LocalNotifications.schedule({ notifications })
     return true
   } catch (e) { return false }

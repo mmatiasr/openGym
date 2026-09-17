@@ -44,6 +44,8 @@ function cleanEx(e) {
   if (e.inc > 0) o.inc = e.inc
   if (e.repsMin != null) o.repsMin = e.repsMin
   if (e.repsMax != null) o.repsMax = e.repsMax
+  // Per-exercise rest override (falls back to the app-wide rest timer when absent).
+  if (e.rest > 0) o.rest = e.rest
   if (e.sg) o.sg = e.sg
   return o
 }

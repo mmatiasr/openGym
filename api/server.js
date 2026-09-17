@@ -123,22 +123,44 @@ setInterval(() => {
   for (const user of db.users) {
     if (!db.subs.some(s => s.userId === user.id)) continue;
     const S = readState(user.id);
-    if (!S?.reminder?.on) continue;
-    const now = userNow(S.reminder.tz || 'UTC');
-    if (!now || S.reminder.time !== now.hhmm) continue;
-    if (user.lastReminder === now.date) continue;
-    if ((S.workouts || []).some(w => w.d === now.date)) continue;
-    const rid = effectiveRoutineId(S, now.date);
-    if (!rid) continue; // rest day — nothing planned
-    const routine = (S.routines || []).find(r => r.id === rid);
-    console.log('reminder firing', user.id, rid);
-    user.lastReminder = now.date;
-    saveDb();
-    sendPush(user.id, {
-      title: routine ? `${routine.emoji || '🏋️'} ${routine.name} today` : 'Workout planned today',
-      body: "It's on your plan — let's go 💪",
-      tag: 'day-reminder'
-    });
+    if (!S) continue;
+
+    if (S.reminder?.on) {
+      const now = userNow(S.reminder.tz || 'UTC');
+      if (now && S.reminder.time === now.hhmm && user.lastReminder !== now.date
+        && !(S.workouts || []).some(w => w.d === now.date)) {
+        const rid = effectiveRoutineId(S, now.date);
+        if (rid) {
+          const routine = (S.routines || []).find(r => r.id === rid);
+          console.log('reminder firing', user.id, rid);
+          user.lastReminder = now.date;
+          saveDb();
+          sendPush(user.id, {
+            title: routine ? `${routine.emoji || '🏋️'} ${routine.name} today` : 'Workout planned today',
+            body: "It's on your plan — let's go 💪",
+            tag: 'day-reminder'
+          });
+        }
+      }
+    }
+
+    // Body-weight check-in — one per user per day, at their own chosen time, skipped once
+    // that day already has a weigh-in (logged from the reminder itself, the Home/Stats "Log"
+    // button, or an import) so it never nags after the fact.
+    if (S.bwReminder?.on) {
+      const now = userNow(S.bwReminder.tz || 'UTC');
+      if (now && S.bwReminder.time === now.hhmm && user.lastBwReminder !== now.date
+        && !(S.bodyweight || []).some(b => b.d === now.date)) {
+        console.log('bw reminder firing', user.id);
+        user.lastBwReminder = now.date;
+        saveDb();
+        sendPush(user.id, {
+          title: 'Weigh-in time',
+          body: "Log today's body weight 📈",
+          tag: 'bw-reminder'
+        });
+      }
+    }
   }
 // Checked every 10s (not 60s) — ticks aren't aligned to the top of the minute, so a 60s
 // interval could sit on your target minute for up to 59s before noticing. 10s caps that at ~9s.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
@@ -167,6 +167,33 @@ function ActiveWorkout() {
   const total = A.entries.reduce((n, e) => n + e.sets.length, 0)
   const done = setsDoneActive(A)
 
+  // Exercises are swiped between, not clicked through — the scroller holds every unit as a
+  // snapped page. `unitIdx` changing from outside a swipe (adding an exercise, reopening a
+  // session) re-centers the scroller with no animation; a swipe itself is picked up in
+  // onExScroll, debounced so `active.cur` updates once the scroll actually settles on a page.
+  const scrollRef = useRef(null)
+  const scrollDebounce = useRef(null)
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || !el.children.length) return
+    // Each page is exactly one clientWidth wide, so the target offset is index × width —
+    // a child's own offsetLeft is relative to its nearest positioned ancestor, not to the
+    // (unpositioned) scroller, so it can't be used here.
+    const target = unitIdx * el.clientWidth
+    if (Math.abs(el.scrollLeft - target) > 2) el.scrollTo({ left: target })
+  }, [unitIdx, units.length])
+  useEffect(() => () => clearTimeout(scrollDebounce.current), [])
+  const onExScroll = () => {
+    const el = scrollRef.current
+    clearTimeout(scrollDebounce.current)
+    scrollDebounce.current = setTimeout(() => {
+      if (!el.clientWidth) return
+      const idx = Math.round(el.scrollLeft / el.clientWidth)
+      const u = units[idx]
+      if (u && u[0] !== cur) update(s => { s.active.cur = u[0] })
+    }, 120)
+  }
+
   const mutEntry = (idx, fn) => update(s => { fn(s.active.entries[idx]) }, true)
   // Clearing an optional field drops the key rather than storing null, so a set only carries
   // what was actually logged — in the session, in history and in a backup.
@@ -206,8 +233,10 @@ function ActiveWorkout() {
         beep(S.sound, 1040, 0.12); vibrate(30)
         const isLastExInUnit = idx === unit[unit.length - 1]
         const unitDone = unit.every(ui => (ui === idx ? e : A.entries[ui]).sets.every(x => x.done))
-        if (isLastExInUnit && !unitDone) startRest(S.restSec)
-        else if (unitDone) stopRest()
+        // Rest always follows the last exercise in the round — including its own last set,
+        // so finishing an exercise still gets you a rest before whatever comes next. Its own
+        // configured rest wins over the app-wide default (Settings → During a workout).
+        if (isLastExInUnit) startRest(e.target?.rest || S.restSec)
         if (unitDone && isLastUnit) workoutDone = true      // last exercise's last set → done
         // Only loaded reps training has a "working weight" worth confirming — a bodyweight
         // plank has nothing to put in that slider, and neither does a set of push-ups
@@ -261,25 +290,24 @@ function ActiveWorkout() {
 
     {A.entries.length ? <>
       <div className="muted small" style={{ marginBottom: 6 }}>{isSuperset ? t('Superset {0} / {1}', unitIdx + 1, units.length) : t('Exercise {0} / {1}', unitIdx + 1, units.length)}</div>
-      {isSuperset ? (
-        <div className="ss-card">
-          <div className="ss-hd"><Icon name="link" />{t('Superset · do these back-to-back, rest after both')}</div>
-          {unit.map((idx, k) => <div key={idx} className="ss-ex">
-            {k > 0 && <div className="ss-amp">+</div>}
-            <ExerciseBlock entryIdx={idx} compact
-              onToggle={i => toggle(idx, i)} onField={(i, f, v) => setField(idx, i, f, v)} onAddSet={() => addSet(idx)} onRemoveSet={() => removeSet(idx)} onStartTimed={i => startTimed(idx, i)} />
-          </div>)}
-        </div>
-      ) : (
-        <ExerciseBlock entryIdx={cur} onToggle={i => toggle(cur, i)} onField={(i, f, v) => setField(cur, i, f, v)} onAddSet={() => addSet(cur)} onRemoveSet={() => removeSet(cur)} onStartTimed={i => startTimed(cur, i)} />
-      )}
+      <div className="ex-scroll" ref={scrollRef} onScroll={onExScroll}>
+        {units.map((u, ui) => <div className="ex-page" key={ui}>
+          {u.length > 1 ? (
+            <div className="ss-card">
+              <div className="ss-hd"><Icon name="link" />{t('Superset · do these back-to-back, rest after both')}</div>
+              {u.map((idx, k) => <div key={idx} className="ss-ex">
+                {k > 0 && <div className="ss-amp">+</div>}
+                <ExerciseBlock entryIdx={idx} compact
+                  onToggle={i => toggle(idx, i)} onField={(i, f, v) => setField(idx, i, f, v)} onAddSet={() => addSet(idx)} onRemoveSet={() => removeSet(idx)} onStartTimed={i => startTimed(idx, i)} />
+              </div>)}
+            </div>
+          ) : (
+            <ExerciseBlock entryIdx={u[0]} onToggle={i => toggle(u[0], i)} onField={(i, f, v) => setField(u[0], i, f, v)} onAddSet={() => addSet(u[0])} onRemoveSet={() => removeSet(u[0])} onStartTimed={i => startTimed(u[0], i)} />
+          )}
+        </div>)}
+      </div>
     </> : <div className="empty"><div className="ico"><Icon name="shuffle" /></div>{t('Freestyle workout — add your first exercise.')}</div>}
 
-    <div style={{ height: 12 }} />
-    <div className="row">
-      <Button icon="chevronLeft" disabled={unitIdx <= 0} onClick={() => update(s => { s.active.cur = units[unitIdx - 1][0] })}>{t('Prev')}</Button>
-      <Button trailingIcon="chevronRight" disabled={unitIdx < 0 || unitIdx >= units.length - 1} onClick={() => update(s => { s.active.cur = units[unitIdx + 1][0] })}>{t('Next')}</Button>
-    </div>
     <div style={{ height: 10 }} />
     <Button onClick={() => exercisePicker(ex => exConfigSheet(ex, null, cfg => update(s => {
       const full = { ...cfg, id: ex.id }

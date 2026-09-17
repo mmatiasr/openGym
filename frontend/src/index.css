@@ -878,6 +878,14 @@ h4.sec{
 .ss-ex{position:relative}
 .ss-amp{text-align:center;font-size:15px;font-weight:600;color:var(--acc);margin:14px 0 8px}
 
+/* --- active workout: swipe between exercises instead of Prev/Next buttons --- */
+.ex-scroll{
+  display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;overscroll-behavior-x:contain;margin:0 calc(var(--pad) * -1);
+}
+.ex-scroll::-webkit-scrollbar{display:none}
+.ex-page{flex:0 0 100%;min-width:100%;scroll-snap-align:start;box-sizing:border-box;padding:0 var(--pad)}
+
 /* --- home: today's session row --- */
 .today-row{
   display:flex;align-items:center;justify-content:space-between;gap:10px;

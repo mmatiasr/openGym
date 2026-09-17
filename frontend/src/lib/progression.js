@@ -69,7 +69,7 @@ export const MAX_BW_SETS = 6
 export function policyFor(cfg, routine, mode) {
   const m = mode || modeOf(cfg || {})
   const allowed = POLICIES_FOR[m] || ['off']
-  const pick = (cfg && cfg.prog) || (routine && routine.prog) || (m === 'reps' ? 'linear' : 'off')
+  const pick = (cfg && cfg.prog) || (routine && routine.prog) || 'off'
   return allowed.includes(pick) ? pick : 'off'
 }
 

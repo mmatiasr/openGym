@@ -247,6 +247,7 @@ function NotificationsCard({ S, update, toast }) {
 // this card only owns the OS permission prompt when the switch turns on.
 function MobileReminderCard({ S, update, toast }) {
   const setReminder = patch => update(s => { s.reminder = { ...(s.reminder || DEF.reminder), ...patch, tz: localTZ() } })
+  const setBwReminder = patch => update(s => { s.bwReminder = { ...(s.bwReminder || DEF.bwReminder), ...patch, tz: localTZ() } })
   const toggle = async () => {
     const on = !S.reminder?.on
     if (on) {
@@ -255,9 +256,17 @@ function MobileReminderCard({ S, update, toast }) {
     }
     setReminder({ on })
   }
+  const toggleBw = async () => {
+    const on = !S.bwReminder?.on
+    if (on) {
+      const ok = await syncReminder({ ...S, bwReminder: { ...(S.bwReminder || DEF.bwReminder), on: true } }, true)
+      if (!ok) { toast(t('Could not change notification settings')); return }
+    }
+    setBwReminder({ on })
+  }
   return (
     <Section title={t('Notifications')}
-      footer={S.reminder?.on ? t('Reminds you at this time on days that have a routine planned.') : null}>
+      footer={S.reminder?.on || S.bwReminder?.on ? t('Reminds you at the times below — workout days on days that have a routine planned, weigh-ins every day.') : null}>
       <Row icon="calendar" iconTint="var(--orange)" title={t('Workout day reminder')}>
         <Switch checked={!!S.reminder?.on} onChange={toggle} />
       </Row>
@@ -265,6 +274,15 @@ function MobileReminderCard({ S, update, toast }) {
         <Row icon="clock" iconTint="var(--purple)" title={t('Reminder time')}>
           <input type="time" className="timef" value={S.reminder?.time || DEF.reminder.time}
             onChange={e => setReminder({ time: e.target.value })} />
+        </Row>
+      )}
+      <Row icon="scale" iconTint="var(--teal)" title={t('Weigh-in reminder')}>
+        <Switch checked={!!S.bwReminder?.on} onChange={toggleBw} />
+      </Row>
+      {S.bwReminder?.on && (
+        <Row icon="clock" iconTint="var(--purple)" title={t('Reminder time')}>
+          <input type="time" className="timef" value={S.bwReminder?.time || DEF.bwReminder.time}
+            onChange={e => setBwReminder({ time: e.target.value })} />
         </Row>
       )}
     </Section>
@@ -303,9 +321,9 @@ function PushCard({ S, update, toast }) {
   return <>
     <Section
       title={t('Notifications')}
-      footer={on && S.reminder?.on
-        ? t("Only sent on days you have a routine planned and haven't logged a workout yet.") +
-          (S.reminder?.tz ? ' ' + t('Timezone: {0} (auto-detected, updates if you travel).', S.reminder.tz) : '')
+      footer={on && (S.reminder?.on || S.bwReminder?.on)
+        ? t('Workout day reminders only send when a routine is planned and not yet logged; weigh-in reminders skip any day already logged.') +
+          (S.reminder?.tz || S.bwReminder?.tz ? ' ' + t('Timezone: {0} (auto-detected, updates if you travel).', S.reminder?.tz || S.bwReminder?.tz) : '')
         : null}
     >
       <Row icon="bell" iconTint="var(--red)" title={t('Push notifications')} subtitle={t('Rest-timer alerts, even if openGym is closed.')}>
@@ -320,6 +338,17 @@ function PushCard({ S, update, toast }) {
         <Row icon="clock" iconTint="var(--purple)" title={t('Reminder time')}>
           <input type="time" className="timef" value={S.reminder?.time || DEF.reminder.time}
             onChange={e => update(s => { s.reminder = { ...(s.reminder || DEF.reminder), time: e.target.value, tz: localTZ() } })} />
+        </Row>
+      )}
+      {on && (
+        <Row icon="scale" iconTint="var(--teal)" title={t('Weigh-in reminder')}>
+          <Switch checked={!!S.bwReminder?.on} onChange={() => update(s => { s.bwReminder = { ...(s.bwReminder || DEF.bwReminder), on: !s.bwReminder?.on, tz: localTZ() } })} />
+        </Row>
+      )}
+      {on && S.bwReminder?.on && (
+        <Row icon="clock" iconTint="var(--purple)" title={t('Reminder time')}>
+          <input type="time" className="timef" value={S.bwReminder?.time || DEF.bwReminder.time}
+            onChange={e => update(s => { s.bwReminder = { ...(s.bwReminder || DEF.bwReminder), time: e.target.value, tz: localTZ() } })} />
         </Row>
       )}
     </Section>
