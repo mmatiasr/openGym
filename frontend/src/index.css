@@ -882,7 +882,9 @@ h4.sec{
 .ex-scroll{
   display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
   scrollbar-width:none;overscroll-behavior-x:contain;margin:0 calc(var(--pad) * -1);
+  cursor:grab;
 }
+.ex-scroll:active{cursor:grabbing}
 .ex-scroll::-webkit-scrollbar{display:none}
 .ex-page{flex:0 0 100%;min-width:100%;scroll-snap-align:start;box-sizing:border-box;padding:0 var(--pad)}
 

@@ -193,6 +193,42 @@ function ActiveWorkout() {
       if (u && u[0] !== cur) update(s => { s.active.cur = u[0] })
     }, 120)
   }
+  // A plain mouse (no touchscreen, no trackpad) has no built-in gesture for horizontal
+  // scroll, and dragging its own scrollbar isn't an option either — it's hidden. So a
+  // vertical wheel tick over the scroller pans it directly, and holding the left button
+  // down and moving the mouse drags it, same as a touch swipe would. React's onWheel is
+  // registered passive (can't preventDefault), so this has to be a real DOM listener.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onWheel = e => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+      e.preventDefault()
+      el.scrollLeft += e.deltaY
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+  const dragRef = useRef(null)
+  const onExPointerDown = e => {
+    if (e.pointerType === 'touch') return   // native touch scrolling already handles this
+    const el = scrollRef.current
+    if (!el) return
+    dragRef.current = { x: e.clientX, left: el.scrollLeft, moved: false, id: e.pointerId }
+  }
+  const onExPointerMove = e => {
+    const d = dragRef.current
+    const el = scrollRef.current
+    if (!d || !el || d.id !== e.pointerId) return
+    const dx = e.clientX - d.x
+    if (Math.abs(dx) > 3 && !d.moved) { d.moved = true; el.setPointerCapture(e.pointerId) }
+    if (d.moved) el.scrollLeft = d.left - dx
+  }
+  const endExDrag = e => {
+    const d = dragRef.current
+    if (d && d.moved) { try { scrollRef.current?.releasePointerCapture(d.id) } catch { /* */ } }
+    dragRef.current = null
+  }
 
   const mutEntry = (idx, fn) => update(s => { fn(s.active.entries[idx]) }, true)
   // Clearing an optional field drops the key rather than storing null, so a set only carries
@@ -290,7 +326,8 @@ function ActiveWorkout() {
 
     {A.entries.length ? <>
       <div className="muted small" style={{ marginBottom: 6 }}>{isSuperset ? t('Superset {0} / {1}', unitIdx + 1, units.length) : t('Exercise {0} / {1}', unitIdx + 1, units.length)}</div>
-      <div className="ex-scroll" ref={scrollRef} onScroll={onExScroll}>
+      <div className="ex-scroll" ref={scrollRef} onScroll={onExScroll}
+        onPointerDown={onExPointerDown} onPointerMove={onExPointerMove} onPointerUp={endExDrag} onPointerCancel={endExDrag}>
         {units.map((u, ui) => <div className="ex-page" key={ui}>
           {u.length > 1 ? (
             <div className="ss-card">
