@@ -304,16 +304,14 @@ h4.sec{
 #tabbar button.start:active .cir{transform:scale(.93)}
 #tabbar button.start .cir .icn{font-size:26px;--icon-stroke:2;color:inherit;opacity:1}
 #tabbar button.start span{color:var(--acc);font-weight:600}
-/* `.cir` is itself a <span>, so the label rules above and below reach it too and
-   outrank the `.cir` block — which is how the running state ended up painting an
-   orange play glyph onto an orange disc. Both states restate their own colour.
-   The disc is orange in either theme, so its glyph is black, not `--on-acc`. */
+/* `.cir` is itself a <span>, so the label rule above outranks the `.cir` block below
+   it in source order — restate the colour here so it isn't picked up by that rule. */
 #tabbar button.start .cir{color:var(--on-acc)}
-#tabbar button.start.rec .cir{background:var(--orange);color:#000;box-shadow:0 6px 18px -4px color-mix(in srgb,var(--orange) 55%,transparent)}
-#tabbar button.start.rec span{color:var(--orange)}
+/* Recording (Resume) stays the same accent as Start — the play icon, "Resume" label
+   and pulsing ring are what mark it as live, not a different colour. */
 #tabbar button.start.rec .cir::after{
   content:'';position:absolute;inset:0;border-radius:50%;
-  border:2px solid var(--orange);animation:ping 1.9s var(--ease) infinite;
+  border:2px solid var(--acc);animation:ping 1.9s var(--ease) infinite;
 }
 @keyframes ping{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.45);opacity:0}}
 
